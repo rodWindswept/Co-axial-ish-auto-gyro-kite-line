@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { ThreeScene } from './components/ThreeScene';
 import { Controls } from './components/Controls';
@@ -14,10 +15,10 @@ const DEFAULT_PARAMS: DesignParams = {
   bladePitch: 4.0,
   rotorMass: 1.5,
   lineTension: 200, // Initial static tension
-  lineAngle: 60, // degrees
+  lineAngle: 50, // degrees
   windSpeed: 10,
   hubDiameter: 0.05,
-  rotorTilt: 0 // Default aligned
+  rotorTilt: -10 // Default aligned
 };
 
 const App: React.FC = () => {
@@ -97,6 +98,9 @@ const App: React.FC = () => {
           <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-md p-4 rounded-lg border border-slate-700 shadow-xl pointer-events-none">
             <h4 className="text-xs text-slate-400 uppercase font-bold mb-2">Live Simulation</h4>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              <span className="text-slate-300">Angle of Attack:</span>
+              <span className="text-white font-mono font-bold text-right">{results.angleOfAttack}°</span>
+
               <span className="text-slate-300">Net Tension:</span>
               <span className="text-emerald-400 font-mono font-bold text-right">{results.generatedThrust} N</span>
               

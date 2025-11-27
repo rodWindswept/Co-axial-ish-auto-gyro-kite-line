@@ -1,3 +1,4 @@
+
 export interface DesignParams {
   bladeLength: number; // meters
   bladeChord: number; // meters
@@ -10,16 +11,26 @@ export interface DesignParams {
   rotorTilt: number; // degrees, misalignment relative to line (spherical bearing control)
 }
 
+export interface AnchorAnalysis {
+  anchorTension: number;
+  anchorAngle: number;
+  lowerLineTensionX: number;
+  lowerLineTensionY: number;
+}
+
 export interface SimulationResult {
   rpm: number;
   generatedThrust: number; // Newtons (axial to line - effective tension)
   totalRotorThrust: number; // Newtons (total aerodynamic force along rotor axis)
   lift: number; // Newtons (vertical)
   drag: number; // Newtons (horizontal)
+  gravity: number; // Newtons (weight of rotor)
   tipSpeed: number; // m/s
   tipSpeedRatio: number;
   stabilityScore: number; // 0-100
   powerOutput: number; // Watts (theoretical extraction)
+  angleOfAttack: number; // degrees (The effective angle between wind and rotor disk)
+  anchorAnalysis: AnchorAnalysis;
 }
 
 export interface ChatMessage {

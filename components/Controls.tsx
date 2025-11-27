@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { DesignParams } from '../types';
-import { Sliders, Wind, Ruler, RotateCw, Anchor, Compass } from 'lucide-react';
+import { Sliders, Wind, Ruler, Compass } from 'lucide-react';
 
 interface ControlsProps {
   params: DesignParams;
@@ -61,13 +62,13 @@ export const Controls: React.FC<ControlsProps> = ({ params, onChange }) => {
         </h3>
         
         <ControlInput 
-          label="Rotor Tilt (Misalignment)" 
+          label="Rotor Tilt" 
           value={params.rotorTilt || 0} 
           min={-20} max={20} step={1} unit="deg"
           onChange={(v) => handleChange('rotorTilt', v)} 
         />
         <p className="text-xs text-slate-500 italic">
-          Tilting the rotor changes the Angle of Attack relative to the wind, increasing or decreasing total thrust, but creates off-axis forces on the line.
+          Positive tilts rotor back (increasing angle of attack). Negative tilts forward.
         </p>
       </div>
 
@@ -86,11 +87,14 @@ export const Controls: React.FC<ControlsProps> = ({ params, onChange }) => {
           onChange={(v) => handleChange('windSpeed', v)} 
         />
          <ControlInput 
-          label="Line Angle (Alpha)" 
+          label="Line Elevation" 
           value={params.lineAngle} 
-          min={10} max={85} step={1} unit="deg"
+          min={5} max={85} step={1} unit="deg"
           onChange={(v) => handleChange('lineAngle', v)} 
         />
+        <p className="text-xs text-slate-500 italic">
+          Angle of the kite line relative to the ground (0° = Horizontal, 90° = Vertical).
+        </p>
       </div>
     </div>
   );
