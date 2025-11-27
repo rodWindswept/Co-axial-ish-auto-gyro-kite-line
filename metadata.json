@@ -1,0 +1,5 @@
+{
+  "name": "GyroKite Designer",
+  "description": "A specialized engineering tool to design, visualize, and simulate a coaxial 2-bladed teetering autogyro mechanism mounted on a tensioned kite line.",
+  "requestFramePermissions": []
+}
