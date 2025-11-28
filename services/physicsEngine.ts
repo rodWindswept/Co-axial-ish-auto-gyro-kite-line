@@ -1,4 +1,5 @@
 
+
 import { DesignParams, SimulationResult } from '../types';
 
 /**
@@ -42,11 +43,6 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
   // --- Aerodynamic Simulation ---
 
   // 1. Tip Speed Ratio (TSR) Calculation
-  // Real autogyros have a complex relationship between Alpha and TSR.
-  // - Alpha ~ 0 deg: No driving force. TSR = 0.
-  // - Alpha ~ 10-15 deg: Peak efficiency region (High speed forward flight). TSR is high (~6-10).
-  // - Alpha ~ 90 deg: Windmill/Parachute mode. Unloaded rotors spin fast here too.
-  
   let expectedTipSpeedRatio = 0;
 
   if (effectiveAlphaDeg <= 1.5) {
@@ -89,17 +85,25 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
   let drag = 0; 
   let gravity = rotorMass * 9.81;
 
+  // Variables for Blade Aerodynamics Analysis
+  let advVel = 0;
+  let retVel = 0;
+  let v_inflow = 0;
+  let advAoA = 0;
+  let retAoA = 0;
+  let advanceRatio = 0;
+  const kinematicViscosity = 1.48e-5; // Air at 15C
+  let reynolds = 0;
+
   if (rpm > 10) {
       // 1. Blade Element Aerodynamics
       
       // Velocity Integration Correction (Based on PCA-2 feedback):
-      // Previous model used V at 75% span squared => 0.56 * Vtip^2.
-      // Correct integration for uniform chord blade is 1/3 * Vtip^2.
       // V_squared_mean = (V_tip^2) / 3
       const v_tangential_sq_mean = (Math.pow(tipSpeed, 2)) / 3;
       
-      // Inflow component (small relative to tip speed in autorotation but important for angle)
-      const v_inflow = windSpeed * Math.sin(alphaRad);
+      // Inflow component 
+      v_inflow = windSpeed * Math.sin(alphaRad);
       
       // Effective dynamic pressure acting on the blade area
       const dynamicPressure = 0.5 * airDensity * (v_tangential_sq_mean + Math.pow(v_inflow, 2));
@@ -108,17 +112,13 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
       const v_tan_75 = tipSpeed * 0.75;
       const phi = Math.atan2(v_inflow, v_tan_75);
       
-      // Local Angle of Attack
-      // alpha_local = phi + pitch
+      // Local Angle of Attack (Mean)
       const effPitchRad = params.bladePitch * (Math.PI / 180);
       const alphaLocal = phi + effPitchRad; 
       
       // Lift Coefficient (Cl)
-      // Standard NACA 0012-ish curve
-      let cl = 2 * Math.PI * alphaLocal; // Theoretical slope
       // Finite wing correction (Aspect Ratio effects reduce slope)
-      // AR ~ 16 for these blades. Slope is closer to 5.5
-      cl = 5.5 * alphaLocal;
+      let cl = 5.5 * alphaLocal;
 
       // Stall characteristics
       if (alphaLocal > 0.22) cl = 1.0; // Soft stall around 12 deg
@@ -131,36 +131,46 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
       const cd_profile = 0.012 + 0.05 * Math.pow(cl, 2);
       dragForce = dynamicPressure * bladeArea * cd_profile;
       
-      // 2. Regime Blending
-      // Standard BEMT works for low/medium angles.
-      // At 90 deg (Vertical/Windmill), forces are dominated by Drag Coefficient of the disk.
-      // We blend to a maximum Ct of ~1.2 based on PCA-2 data.
-      
-      // BEMT Thrust Calculation
+      // 2. Regime Blending / Thrust Calculation
       totalRotorThrust = liftForce * Math.cos(phi) + dragForce * Math.sin(phi);
 
-      // --- Upper Bound Clamp ---
-      // Physics check: Ct cannot realistically exceed ~1.2 for a rotor in this state.
-      // Thrust = 0.5 * rho * V^2 * DiskArea * Ct
+      // --- Upper Bound Clamp (PCA-2 max Ct) ---
       const q_disk = 0.5 * airDensity * Math.pow(windSpeed, 2);
-      const maxCt = 1.3; // Allow slight transient overshoots but generally cap here
+      const maxCt = 1.3; 
       const maxThrust = q_disk * rotorDiskArea * maxCt;
       
-      // Smoothly blend or clamp
       if (totalRotorThrust > maxThrust) {
           totalRotorThrust = maxThrust;
       }
 
       // --- World Frame Resolution ---
-      // Lift_World = Component of Thrust opposing Gravity (Vertical)
-      // Drag_World = Component of Thrust along Wind (Horizontal) + H-Force
-      
       lift = totalRotorThrust * Math.cos(alphaRad);
-      drag = totalRotorThrust * Math.sin(alphaRad) + (dragForce * 0.5); // Add parasitic drag
+      drag = totalRotorThrust * Math.sin(alphaRad) + (dragForce * 0.5); 
       
+      // --- Detailed Blade Aerodynamics (Advancing vs Retreating) ---
+      // Advance Ratio (mu) = Forward Speed parallel to disk / Tip Speed
+      const v_parallel = windSpeed * Math.cos(alphaRad);
+      advanceRatio = v_parallel / tipSpeed;
+
+      // Velocities at 75% Span
+      // Advancing: TipSpeed*0.75 + Parallel Wind Component
+      // Retreating: TipSpeed*0.75 - Parallel Wind Component
+      advVel = v_tan_75 + v_parallel;
+      retVel = v_tan_75 - v_parallel;
+
+      // Local Angles of Attack
+      // Phi = atan(Inflow / Tangential)
+      const phi_adv = Math.atan2(v_inflow, advVel);
+      const phi_ret = Math.atan2(v_inflow, retVel);
+
+      advAoA = (phi_adv + effPitchRad) * (180/Math.PI);
+      retAoA = (phi_ret + effPitchRad) * (180/Math.PI);
+      
+      // Reynolds Number at 75% span (Mean)
+      reynolds = (v_tan_75 * bladeChord) / kinematicViscosity;
+
   } else {
-      // Stationary / Bluff Body only
-      // If stalled or stopped, acts like a bad flat plate
+      // Stationary / Bluff Body
       const stationaryDrag = 0.5 * airDensity * Math.pow(windSpeed, 2) * bladeArea * 1.2 * Math.sin(alphaRad);
       drag = stationaryDrag;
       lift = 0;
@@ -210,6 +220,15 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
         anchorAngle: parseFloat(anchorAngleDeg.toFixed(1)),
         lowerLineTensionX: parseFloat(f_anchor_total_x.toFixed(2)),
         lowerLineTensionY: parseFloat(f_anchor_total_y.toFixed(2))
+    },
+    bladeAerodynamics: {
+      advancingVelocity: parseFloat(advVel.toFixed(1)),
+      retreatingVelocity: parseFloat(retVel.toFixed(1)),
+      inflowVelocity: parseFloat(v_inflow.toFixed(2)),
+      advancingAoA: parseFloat(advAoA.toFixed(1)),
+      retreatingAoA: parseFloat(retAoA.toFixed(1)),
+      advanceRatio: parseFloat(advanceRatio.toFixed(2)),
+      reynoldsNumber: Math.round(reynolds)
     }
   };
 };

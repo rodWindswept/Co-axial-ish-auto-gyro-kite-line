@@ -1,4 +1,5 @@
 
+
 export interface DesignParams {
   bladeLength: number; // meters
   bladeChord: number; // meters
@@ -18,6 +19,16 @@ export interface AnchorAnalysis {
   lowerLineTensionY: number;
 }
 
+export interface BladeAerodynamics {
+  advancingVelocity: number; // m/s at 75% span
+  retreatingVelocity: number; // m/s at 75% span
+  inflowVelocity: number; // m/s (Vertical component of wind through disk)
+  advancingAoA: number; // degrees
+  retreatingAoA: number; // degrees
+  advanceRatio: number; // mu
+  reynoldsNumber: number;
+}
+
 export interface SimulationResult {
   rpm: number;
   generatedThrust: number; // Newtons (axial to line - effective tension)
@@ -31,6 +42,7 @@ export interface SimulationResult {
   powerOutput: number; // Watts (theoretical extraction)
   angleOfAttack: number; // degrees (The effective angle between wind and rotor disk)
   anchorAnalysis: AnchorAnalysis;
+  bladeAerodynamics: BladeAerodynamics;
 }
 
 export interface ChatMessage {

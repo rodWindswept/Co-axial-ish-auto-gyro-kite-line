@@ -1,14 +1,151 @@
 
+
 import React from 'react';
 import { SimulationResult, DesignParams } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Activity, Zap, TrendingUp, AlertTriangle, ArrowDownRight, Anchor } from 'lucide-react';
+import { Activity, Zap, TrendingUp, AlertTriangle, ArrowDownRight, Anchor, Wind } from 'lucide-react';
 import { calculatePhysics } from '../services/physicsEngine';
 
 interface AnalysisProps {
   currentResults: SimulationResult;
   params: DesignParams;
 }
+
+const BladeAerodynamicsView: React.FC<{ results: SimulationResult }> = ({ results }) => {
+  const { bladeAerodynamics } = results;
+  
+  // Create dataset for the velocity comparison chart
+  const velocityData = [
+    { name: 'Retreating', velocity: bladeAerodynamics.retreatingVelocity, fill: '#ef4444' }, // Red
+    { name: 'Advancing', velocity: bladeAerodynamics.advancingVelocity, fill: '#10b981' }, // Green
+  ];
+
+  const maxVel = Math.max(bladeAerodynamics.advancingVelocity, 10);
+
+  return (
+    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-col h-full">
+      <h3 className="text-slate-300 font-semibold mb-4 text-sm flex items-center gap-2">
+        <Wind className="w-4 h-4 text-indigo-400" />
+        Blade Aerodynamics & Asymmetry
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+        
+        {/* Left Column: Airfoil & Stats */}
+        <div className="flex flex-col gap-4">
+          
+          {/* Airfoil Visualization */}
+          <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700 flex flex-col items-center justify-center relative min-h-[100px]">
+             <div className="w-full h-16 relative">
+                <svg width="100%" height="100%" viewBox="0 0 100 30" preserveAspectRatio="xMidYMid meet">
+                  {/* NACA 0012 Approximation - Symmetrical */}
+                  <path 
+                    d="M 5 15 Q 35 5, 95 15 Q 35 25, 5 15" 
+                    fill="none" 
+                    stroke="#94a3b8" 
+                    strokeWidth="1.5"
+                  />
+                  <line x1="0" y1="15" x2="100" y2="15" stroke="#475569" strokeDasharray="2 2" />
+                  <text x="50" y="28" fill="#64748b" fontSize="4" textAnchor="middle">NACA 0012 Symmetrical Profile</text>
+                </svg>
+             </div>
+          </div>
+
+          {/* Vector Analysis (New Section) */}
+          <div className="bg-slate-900/30 p-3 rounded border border-slate-700 flex-1 flex flex-col justify-center">
+             <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Vector Components (at 75% Span)</h4>
+             <div className="grid grid-cols-2 gap-y-2 text-xs">
+                
+                <span className="text-slate-400">Inflow Velocity (Up)</span>
+                <span className="text-right font-mono text-indigo-300">+{bladeAerodynamics.inflowVelocity} m/s</span>
+                
+                <div className="col-span-2 h-px bg-slate-700/50 my-1"></div>
+
+                <span className="text-emerald-400">Advancing V(tan)</span>
+                <span className="text-right font-mono text-emerald-300">{bladeAerodynamics.advancingVelocity} m/s</span>
+
+                <span className="text-rose-400">Retreating V(tan)</span>
+                <span className="text-right font-mono text-rose-300">{bladeAerodynamics.retreatingVelocity} m/s</span>
+             </div>
+          </div>
+
+        </div>
+
+        {/* Right Column: Asymmetry Comparison */}
+        <div className="flex flex-col gap-3 bg-slate-900/30 rounded-lg p-3 border border-slate-700">
+           
+           <div className="mb-1">
+              <h4 className="text-xs font-bold text-slate-400 uppercase mb-3">Blade Symmetry</h4>
+              
+              {/* Advancing Row */}
+              <div className="flex items-center justify-between mb-1">
+                 <div className="flex flex-col">
+                    <span className="text-xs text-emerald-400 font-bold">Advancing Blade</span>
+                    <span className="text-[10px] text-slate-500">(Into Wind)</span>
+                 </div>
+                 <div className="text-right">
+                    <div className="text-sm font-mono text-white">{bladeAerodynamics.advancingVelocity} m/s</div>
+                    <div className="text-xs text-slate-400">AoA: {bladeAerodynamics.advancingAoA}°</div>
+                 </div>
+              </div>
+              
+              {/* Visual Bar Advancing */}
+              <div className="w-full h-1.5 bg-slate-700 rounded-full mb-4">
+                 <div 
+                    className="h-full bg-emerald-500 rounded-full" 
+                    style={{ width: `${(bladeAerodynamics.advancingVelocity / maxVel) * 100}%` }}
+                 ></div>
+              </div>
+
+              {/* Retreating Row */}
+              <div className="flex items-center justify-between mb-1">
+                 <div className="flex flex-col">
+                    <span className="text-xs text-rose-400 font-bold">Retreating Blade</span>
+                    <span className="text-[10px] text-slate-500">(With Wind)</span>
+                 </div>
+                 <div className="text-right">
+                    <div className="text-sm font-mono text-white">{bladeAerodynamics.retreatingVelocity} m/s</div>
+                     <div className={`text-xs ${bladeAerodynamics.retreatingAoA > 14 ? 'text-rose-500 font-bold animate-pulse' : 'text-slate-400'}`}>
+                        AoA: {bladeAerodynamics.retreatingAoA}°
+                     </div>
+                 </div>
+              </div>
+
+               {/* Visual Bar Retreating */}
+               <div className="w-full h-1.5 bg-slate-700 rounded-full mb-1">
+                 <div 
+                    className="h-full bg-rose-500 rounded-full transition-all duration-300" 
+                    style={{ width: `${Math.max(0, (bladeAerodynamics.retreatingVelocity / maxVel) * 100)}%` }}
+                 ></div>
+              </div>
+           </div>
+
+           {/* Warnings */}
+           <div className="mt-auto text-xs border-t border-slate-700 pt-2">
+              <p className="text-[10px] text-slate-500 mb-2 italic leading-tight">
+                 AoA = Pitch + arctan(Inflow / V_tan). <br/>
+                 Lower V_tan on retreating side results in steeper AoA.
+              </p>
+              {bladeAerodynamics.retreatingVelocity <= 0 ? (
+                 <div className="text-rose-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Reverse Flow Region Detected
+                 </div>
+              ) : bladeAerodynamics.retreatingAoA > 15 ? (
+                 <div className="text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Retreating Blade Stall Risk
+                 </div>
+              ) : (
+                <div className="text-slate-500">Flow state nominal.</div>
+              )}
+           </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
 
 const SystemDeformation: React.FC<{ params: DesignParams; results: SimulationResult }> = ({ params, results }) => {
   const { anchorAnalysis } = results;
@@ -51,7 +188,7 @@ const SystemDeformation: React.FC<{ params: DesignParams; results: SimulationRes
         System Deformation & Vector Resolution
       </h3>
       
-      <div className="flex-1 w-full flex items-center justify-center bg-slate-900/50 rounded-lg relative overflow-hidden">
+      <div className="flex-1 w-full flex items-center justify-center bg-slate-900/50 rounded-lg relative overflow-hidden min-h-[200px]">
         <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
             
             {/* Ground Line */}
@@ -161,7 +298,7 @@ export const Analysis: React.FC<AnalysisProps> = ({ currentResults, params }) =>
   }, [params]);
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-y-auto pr-2">
+    <div className="h-full flex flex-col gap-4 overflow-y-auto pr-2 pb-20">
       
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -196,8 +333,13 @@ export const Analysis: React.FC<AnalysisProps> = ({ currentResults, params }) =>
       </div>
 
        {/* System Deformation Visualization (Takes full width) */}
-       <div className="w-full h-[350px]">
-          <SystemDeformation params={params} results={currentResults} />
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:h-[360px] h-auto">
+          <div className="lg:col-span-2 min-h-[300px] h-full">
+            <SystemDeformation params={params} results={currentResults} />
+          </div>
+          <div className="lg:col-span-1 min-h-[300px] h-full">
+            <BladeAerodynamicsView results={currentResults} />
+          </div>
        </div>
 
       {/* Charts */}

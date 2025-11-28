@@ -71,8 +71,11 @@ const App: React.FC = () => {
         {/* Left Panel - Dynamic Content based on Tab */}
         <div className={clsx(
           "flex-none transition-all duration-300 ease-in-out border-r border-slate-800 bg-slate-900/50",
-          activeTab === Tab.ASSISTANT ? "w-full lg:w-[400px]" : "w-full lg:w-[350px]",
-          // On mobile, this takes full screen or is hidden based on viewing need, simplified here for desktop-first responsiveness
+          activeTab === Tab.ANALYSIS 
+            ? "w-full lg:w-[65%]"  // Expanded width for Analysis
+            : activeTab === Tab.ASSISTANT 
+              ? "w-full lg:w-[400px]" 
+              : "w-full lg:w-[350px]", // Default narrow width for Design
           "flex flex-col h-1/2 lg:h-full"
         )}>
            {activeTab === Tab.DESIGN && (
@@ -94,26 +97,28 @@ const App: React.FC = () => {
         <div className="flex-1 h-1/2 lg:h-full relative bg-slate-950">
           <ThreeScene params={params} results={results} />
           
-          {/* Overlay Stats */}
-          <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-md p-4 rounded-lg border border-slate-700 shadow-xl pointer-events-none">
-            <h4 className="text-xs text-slate-400 uppercase font-bold mb-2">Live Simulation</h4>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-              <span className="text-slate-300">Angle of Attack:</span>
-              <span className="text-white font-mono font-bold text-right">{results.angleOfAttack}°</span>
+          {/* Overlay Stats - Hide when in Analysis mode to reduce clutter in the smaller view */}
+          {activeTab !== Tab.ANALYSIS && (
+            <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-md p-4 rounded-lg border border-slate-700 shadow-xl pointer-events-none">
+              <h4 className="text-xs text-slate-400 uppercase font-bold mb-2">Live Simulation</h4>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                <span className="text-slate-300">Angle of Attack:</span>
+                <span className="text-white font-mono font-bold text-right">{results.angleOfAttack}°</span>
 
-              <span className="text-slate-300">Net Tension:</span>
-              <span className="text-emerald-400 font-mono font-bold text-right">{results.generatedThrust} N</span>
-              
-              <span className="text-slate-300">Rotor Thrust:</span>
-              <span className="text-green-500 font-mono font-bold text-right">{results.totalRotorThrust} N</span>
+                <span className="text-slate-300">Net Tension:</span>
+                <span className="text-emerald-400 font-mono font-bold text-right">{results.generatedThrust} N</span>
+                
+                <span className="text-slate-300">Rotor Thrust:</span>
+                <span className="text-green-500 font-mono font-bold text-right">{results.totalRotorThrust} N</span>
 
-              <span className="text-slate-300">RPM:</span>
-              <span className="text-blue-400 font-mono font-bold text-right">{results.rpm}</span>
-              
-              <span className="text-slate-300">Tip Speed:</span>
-              <span className="text-yellow-400 font-mono font-bold text-right">{results.tipSpeed} m/s</span>
+                <span className="text-slate-300">RPM:</span>
+                <span className="text-blue-400 font-mono font-bold text-right">{results.rpm}</span>
+                
+                <span className="text-slate-300">Tip Speed:</span>
+                <span className="text-yellow-400 font-mono font-bold text-right">{results.tipSpeed} m/s</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
       </div>
