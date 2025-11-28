@@ -40,6 +40,10 @@ const SystemDeformation: React.FC<{ params: DesignParams; results: SimulationRes
   const anchorX = padding;
   const anchorY = height - padding;
 
+  // Analysis Calculations
+  const totalVerticalForce = anchorAnalysis.lowerLineTensionY;
+  const rotorVerticalForce = results.lift - results.gravity;
+
   return (
     <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-col h-full">
       <h3 className="text-slate-300 font-semibold mb-4 text-sm flex items-center gap-2">
@@ -108,24 +112,30 @@ const SystemDeformation: React.FC<{ params: DesignParams; results: SimulationRes
         </svg>
         
         {/* Info Box */}
-        <div className="absolute top-2 left-2 bg-slate-900/80 p-2 rounded border border-slate-700 text-xs">
-            <div className="flex justify-between gap-4 mb-1">
-                <span className="text-slate-400">Anchor Tension:</span>
-                <span className="text-amber-400 font-bold">{anchorAnalysis.anchorTension} N</span>
-            </div>
-            <div className="flex justify-between gap-4 mb-1">
-                <span className="text-slate-400">Anchor Angle:</span>
-                <span className="text-white font-mono">{anchorAnalysis.anchorAngle}°</span>
-            </div>
-            <div className="border-t border-slate-700 my-1 pt-1">
-                <div className="flex justify-between gap-4">
-                     <span className="text-slate-400">Kite Angle:</span>
-                     <span className="text-slate-300 font-mono">{params.lineAngle}°</span>
-                </div>
-                 <div className="flex justify-between gap-4">
-                     <span className="text-slate-400">Kite Tension:</span>
-                     <span className="text-slate-300 font-mono">{params.lineTension} N</span>
-                </div>
+        <div className="absolute top-2 left-2 bg-slate-900/90 p-3 rounded-lg border border-slate-700 text-xs shadow-xl backdrop-blur-sm min-w-[180px]">
+            <div className="font-bold text-slate-300 mb-2 pb-1 border-b border-slate-700">Anchor Loads</div>
+            
+            <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+              <span className="text-slate-400">Tension Magnitude:</span>
+              <span className="text-amber-400 font-bold">{anchorAnalysis.anchorTension} N</span>
+              
+              <span className="text-slate-400">Exit Angle:</span>
+              <span className="text-white font-mono">{anchorAnalysis.anchorAngle}°</span>
+              
+              <div className="col-span-2 h-px bg-slate-700 my-1"></div>
+              
+              <span className="text-slate-400">Total Vertical Force:</span>
+              <span className="text-blue-300 font-mono">{totalVerticalForce} N</span>
+              
+              <span className="text-slate-400">Rotor Share:</span>
+              <span className={`${rotorVerticalForce >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-mono font-bold`}>
+                 {rotorVerticalForce > 0 ? '+' : ''}{rotorVerticalForce.toFixed(2)} N
+              </span>
+              
+              <div className="col-span-2 h-px bg-slate-700 my-1"></div>
+
+               <span className="text-slate-500">Kite Angle:</span>
+               <span className="text-slate-500 font-mono">{params.lineAngle}°</span>
             </div>
         </div>
 
