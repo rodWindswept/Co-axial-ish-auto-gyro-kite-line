@@ -2,6 +2,47 @@
 
 import { DesignParams, SimulationResult } from '../types';
 
+// Empirical Data from PCA-2 Autogyro Tests (NASA TM 20080022367, Page 45)
+// X: Hub Plane Angle of Attack (Degrees)
+// Y: Coefficient (based on Disk Area)
+const PCA2_DATA = [
+  { alpha: 0,  cl: 0.00, cd: 0.01 }, // Extrapolated start
+  { alpha: 5,  cl: 0.15, cd: 0.03 },
+  { alpha: 10, cl: 0.30, cd: 0.06 },
+  { alpha: 15, cl: 0.45, cd: 0.10 },
+  { alpha: 20, cl: 0.60, cd: 0.16 },
+  { alpha: 25, cl: 0.75, cd: 0.24 },
+  { alpha: 30, cl: 0.85, cd: 0.35 },
+  { alpha: 35, cl: 0.92, cd: 0.48 },
+  { alpha: 40, cl: 0.95, cd: 0.62 }, // Peak Lift
+  { alpha: 45, cl: 0.90, cd: 0.75 },
+  { alpha: 50, cl: 0.82, cd: 0.86 }, // Intersection roughly here
+  { alpha: 60, cl: 0.65, cd: 0.96 },
+  { alpha: 70, cl: 0.45, cd: 1.05 },
+  { alpha: 80, cl: 0.25, cd: 1.15 },
+  { alpha: 90, cl: 0.00, cd: 1.25 }  // Pure Bluff Body Drag
+];
+
+function interpolateCoefficients(alpha: number): { cl: number, cd: number } {
+  // Clamp alpha
+  const a = Math.max(0, Math.min(90, Math.abs(alpha)));
+
+  // Find segment
+  for (let i = 0; i < PCA2_DATA.length - 1; i++) {
+    const p1 = PCA2_DATA[i];
+    const p2 = PCA2_DATA[i+1];
+    
+    if (a >= p1.alpha && a <= p2.alpha) {
+      const t = (a - p1.alpha) / (p2.alpha - p1.alpha);
+      return {
+        cl: p1.cl + t * (p2.cl - p1.cl),
+        cd: p1.cd + t * (p2.cd - p1.cd)
+      };
+    }
+  }
+  return { cl: 0, cd: 0 };
+}
+
 /**
  * A simplified Blade Element Momentum Theory (BEMT) approximation 
  * for a kite-mounted autogyro.
@@ -22,7 +63,10 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
   const bladeCount = 2;
   const rotorRadius = bladeLength;
   const rotorDiskArea = Math.PI * Math.pow(rotorRadius, 2);
+  // Solidity is mostly for reference in this empirical model, 
+  // but could scale the base PCA-2 coeffs if design deviates significantly from standard solidity (~0.05-0.1)
   const bladeArea = bladeCount * bladeLength * bladeChord;
+  const solidity = bladeArea / rotorDiskArea; 
   
   // --- Geometric Calculations ---
   // lineAngle is 'Elevation' from ground (0 = horizontal, 90 = vertical).
@@ -76,7 +120,7 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
   const radsPerSecond = tipSpeed / rotorRadius;
   const rpm = (radsPerSecond * 60) / (2 * Math.PI);
 
-  // --- Force Calculation ---
+  // --- Force Calculation using PCA-2 Empirical Curves ---
   
   let liftForce = 0; 
   let dragForce = 0; 
@@ -96,81 +140,59 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
   let reynolds = 0;
 
   if (rpm > 10) {
-      // 1. Blade Element Aerodynamics
       
-      // Velocity Integration Correction (Based on PCA-2 feedback):
-      // V_squared_mean = (V_tip^2) / 3
-      const v_tangential_sq_mean = (Math.pow(tipSpeed, 2)) / 3;
-      
-      // Inflow component 
-      v_inflow = windSpeed * Math.sin(alphaRad);
-      
-      // Effective dynamic pressure acting on the blade area
-      const dynamicPressure = 0.5 * airDensity * (v_tangential_sq_mean + Math.pow(v_inflow, 2));
+      // 1. Get Coefficients from Curve
+      // The PCA-2 data gives us Global Cl and Cd based on Hub Plane Angle of Attack
+      const { cl, cd } = interpolateCoefficients(effectiveAlphaDeg);
 
-      // Calculate Local Inflow Angle (phi) at 75% span for Angle of Attack check
-      const v_tan_75 = tipSpeed * 0.75;
-      const phi = Math.atan2(v_inflow, v_tan_75);
-      
-      // Local Angle of Attack (Mean)
-      const effPitchRad = params.bladePitch * (Math.PI / 180);
-      const alphaLocal = phi + effPitchRad; 
-      
-      // Lift Coefficient (Cl)
-      // Finite wing correction (Aspect Ratio effects reduce slope)
-      let cl = 5.5 * alphaLocal;
+      // 2. Calculate Dynamic Pressure
+      // Note: Rotor coefficients are typically applied to Disk Area and Free Stream Velocity
+      const q = 0.5 * airDensity * Math.pow(windSpeed, 2);
 
-      // Stall characteristics
-      if (alphaLocal > 0.22) cl = 1.0; // Soft stall around 12 deg
-      if (alphaLocal > 0.35) cl = 0.8; // Deep stall drop off
+      // 3. Calculate Global Forces (Wind Frame)
+      // Lift is perpendicular to wind, Drag is parallel to wind
+      lift = cl * q * rotorDiskArea;
+      drag = cd * q * rotorDiskArea;
 
-      // Calculate Lift (Perpendicular to Blade Motion -> Axial Thrust)
-      liftForce = dynamicPressure * bladeArea * cl;
+      // 4. Resolve into Rotor Axis Thrust
+      // Thrust is the component of the Total Aerodynamic Force aligned with the Rotor Axis
+      // Rotor Axis is tilted 'alphaRad' back from vertical (perpendicular to wind)??
+      // No, Rotor Axis is tilted 'alphaRad' back from the vertical-to-wind plane.
+      // Let's use vector projection.
+      // Lift Vector: [0, 1] (Up)
+      // Drag Vector: [1, 0] (Downwind)
+      // Rotor Axis Vector (tilted back by alpha): [sin(alpha), cos(alpha)]
       
-      // Drag (Profile + Induced)
-      const cd_profile = 0.012 + 0.05 * Math.pow(cl, 2);
-      dragForce = dynamicPressure * bladeArea * cd_profile;
-      
-      // 2. Regime Blending / Thrust Calculation
-      totalRotorThrust = liftForce * Math.cos(phi) + dragForce * Math.sin(phi);
+      // Total Thrust = Lift * cos(alpha) + Drag * sin(alpha)
+      totalRotorThrust = lift * Math.cos(alphaRad) + drag * Math.sin(alphaRad);
 
-      // --- Upper Bound Clamp (PCA-2 max Ct) ---
-      const q_disk = 0.5 * airDensity * Math.pow(windSpeed, 2);
-      const maxCt = 1.3; 
-      const maxThrust = q_disk * rotorDiskArea * maxCt;
-      
-      if (totalRotorThrust > maxThrust) {
-          totalRotorThrust = maxThrust;
-      }
-
-      // --- World Frame Resolution ---
-      lift = totalRotorThrust * Math.cos(alphaRad);
-      drag = totalRotorThrust * Math.sin(alphaRad) + (dragForce * 0.5); 
-      
       // --- Detailed Blade Aerodynamics (Advancing vs Retreating) ---
-      // Advance Ratio (mu) = Forward Speed parallel to disk / Tip Speed
+      // This section is kept for the Analysis Tab visualization, using the BEMT logic
+      // just to derive local velocities and angles, even though global force comes from PCA-2 curves.
+      
+      const v_tan_75 = tipSpeed * 0.75;
+      v_inflow = windSpeed * Math.sin(alphaRad);
+
       const v_parallel = windSpeed * Math.cos(alphaRad);
       advanceRatio = v_parallel / tipSpeed;
 
       // Velocities at 75% Span
-      // Advancing: TipSpeed*0.75 + Parallel Wind Component
-      // Retreating: TipSpeed*0.75 - Parallel Wind Component
       advVel = v_tan_75 + v_parallel;
       retVel = v_tan_75 - v_parallel;
 
       // Local Angles of Attack
-      // Phi = atan(Inflow / Tangential)
+      const effPitchRad = params.bladePitch * (Math.PI / 180);
       const phi_adv = Math.atan2(v_inflow, advVel);
       const phi_ret = Math.atan2(v_inflow, retVel);
 
       advAoA = (phi_adv + effPitchRad) * (180/Math.PI);
       retAoA = (phi_ret + effPitchRad) * (180/Math.PI);
       
-      // Reynolds Number at 75% span (Mean)
       reynolds = (v_tan_75 * bladeChord) / kinematicViscosity;
 
   } else {
       // Stationary / Bluff Body
+      // Fallback to simple drag plate if not spinning
       const stationaryDrag = 0.5 * airDensity * Math.pow(windSpeed, 2) * bladeArea * 1.2 * Math.sin(alphaRad);
       drag = stationaryDrag;
       lift = 0;
@@ -178,6 +200,12 @@ export const calculatePhysics = (params: DesignParams): SimulationResult => {
   }
 
   // Project Thrust onto Kite Line Axis
+  // The Rotor Axis itself is misaligned from the Kite Line by 'rotorTilt'
+  // But wait, 'effectiveAlpha' ALREADY includes 'rotorTilt'. 
+  // 'totalRotorThrust' is along the Rotor Axis.
+  // We want the component along the KITE LINE.
+  // The angle between Rotor Axis and Kite Line is simply 'rotorTilt'.
+  
   const tiltRad = rotorTilt * (Math.PI / 180);
   const generatedThrust = totalRotorThrust * Math.cos(tiltRad);
   
